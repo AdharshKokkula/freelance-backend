@@ -10,7 +10,17 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-const dbpath = path.join(__dirname, "appData.db");
+// Use environment variables for sensitive data
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+const PORT = process.env.PORT || 3000;
+
+// For development, use local SQLite
+// For production, you should use a cloud database
+const dbpath =
+  process.env.NODE_ENV === "production"
+    ? ":memory:" // In production, we'll need to use a cloud database
+    : path.join(__dirname, "appData.db");
+
 let database = null;
 
 const initializeDatabaseAndServer = async () => {
@@ -20,11 +30,14 @@ const initializeDatabaseAndServer = async () => {
       driver: sqlite3.Database,
     });
 
-    app.listen(3000, () => {
-      console.log("\nServer is Running at: http://localhost:3000\n");
-    });
+    // Only listen in development
+    if (process.env.NODE_ENV !== "production") {
+      app.listen(PORT, () => {
+        console.log(`\nServer is Running at: http://localhost:${PORT}\n`);
+      });
+    }
   } catch (error) {
-    console.log(error);
+    console.error("Database initialization error:", error);
   }
 };
 
@@ -95,7 +108,7 @@ app.post("/login", async (request, response) => {
       response.send("Invalid password");
     } else {
       const payLoad = { username: username, password: password };
-      const jwtToken = jwt.sign(payLoad, "secret");
+      const jwtToken = jwt.sign(payLoad, JWT_SECRET);
       response
         .status(200)
         .json({ message: "successful login", jwt_token: jwtToken });
