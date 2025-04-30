@@ -10,17 +10,7 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Use environment variables for sensitive data
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-const PORT = process.env.PORT || 3000;
-
-// For development, use local SQLite
-// For production, you should use a cloud database
-const dbpath =
-  process.env.NODE_ENV === "production"
-    ? ":memory:" // In production, we'll need to use a cloud database
-    : path.join(__dirname, "appData.db");
-
+const dbpath = path.join(__dirname, "appData.db");
 let database = null;
 
 const initializeDatabaseAndServer = async () => {
@@ -30,14 +20,11 @@ const initializeDatabaseAndServer = async () => {
       driver: sqlite3.Database,
     });
 
-    // Only listen in development
-    if (process.env.NODE_ENV !== "production") {
-      app.listen(PORT, () => {
-        console.log(`\nServer is Running at: http://localhost:${PORT}\n`);
-      });
-    }
+    app.listen(3000, () => {
+      console.log("\nServer is Running at: http://localhost:3000\n");
+    });
   } catch (error) {
-    console.error("Database initialization error:", error);
+    console.log(error);
   }
 };
 
@@ -108,7 +95,7 @@ app.post("/login", async (request, response) => {
       response.send("Invalid password");
     } else {
       const payLoad = { username: username, password: password };
-      const jwtToken = jwt.sign(payLoad, JWT_SECRET);
+      const jwtToken = jwt.sign(payLoad, "secret");
       response
         .status(200)
         .json({ message: "successful login", jwt_token: jwtToken });
@@ -147,10 +134,23 @@ app.get("/workers-data", async (request, response) => {
   response.send(results);
 });
 
+// app.get("/works-data", async (request, response) => {
+//   const sqlGetQuery = `select * from work_details;`;
+//   const results = await database.all(sqlGetQuery);
+//   response.send(results);
+// });
+
 app.get("/works-data", async (request, response) => {
-  const sqlGetQuery = `select * from work_details;`;
-  const results = await database.all(sqlGetQuery);
-  response.send(results);
+  try {
+    console.log("Fetching all works data"); // Add logging
+    const sqlGetQuery = `SELECT id, * FROM work_details;`;
+    const results = await database.all(sqlGetQuery);
+    console.log("Works data:", results); // Add logging
+    response.send(results);
+  } catch (error) {
+    console.error("Error fetching works:", error);
+    response.status(500).json({ error: "Internal server error" });
+  }
 });
 
 app.post("/create-worker-card", async (request, response) => {
@@ -203,6 +203,73 @@ app.get("/workers-data/:searchValue", async (reqest, response) => {
   const results_for_works = await database.all(sqlGetQueryForWorks);
   const results = [results_for_workers, results_for_works];
   response.send(results);
+});
+
+// ... existing code ...
+
+// New endpoint to get specific work details
+// app.get("/works/:id", async (request, response) => {
+//   const { id } = request.params;
+//   try {
+//     const sqlGetQuery = `SELECT * FROM work_details WHERE id = ${id};`;
+//     const workDetails = await database.get(sqlGetQuery);
+
+//     if (workDetails) {
+//       // Format the response to match the frontend expectations
+//       const formattedResponse = {
+//         id: workDetails.id,
+//         title: workDetails.job_title,
+//         description: workDetails.description,
+//         location: workDetails.location,
+//         price: workDetails.payment,
+//         duration: workDetails.deadline,
+//         image_src: workDetails.image_src,
+//         category: workDetails.category,
+//         posted_by: workDetails.posted_by,
+//         rating: workDetails.rating,
+//         // Add any additional fields that might be needed
+//       };
+//       response.status(200).json(formattedResponse);
+//     } else {
+//       response.status(404).json({ error: "Work not found" });
+//     }
+//   } catch (error) {
+//     console.error("Error fetching work details:", error);
+//     response.status(500).json({ error: "Internal server error" });
+//   }
+// });
+
+// Add this endpoint to your app.js
+app.get("/works/:id", async (request, response) => {
+  const { id } = request.params;
+  try {
+    console.log("Fetching work details for ID:", id); // Add logging
+    const sqlGetQuery = `SELECT * FROM work_details WHERE id = ?;`;
+    const workDetails = await database.get(sqlGetQuery, [id]);
+
+    if (workDetails) {
+      console.log("Found work details:", workDetails); // Add logging
+      const formattedResponse = {
+        id: workDetails.id,
+        title: workDetails.job_title,
+        description: workDetails.description,
+        location: workDetails.location,
+        price: workDetails.payment,
+        duration: workDetails.deadline,
+        image_src: workDetails.image_src,
+        category: workDetails.category,
+        posted_by: workDetails.posted_by,
+        rating: workDetails.rating,
+      };
+      response.status(200).json(formattedResponse);
+    } else {
+      console.log("No work found for ID:", id); // Add logging
+      response.status(404).json({ error: "Work not found" });
+    }
+  } catch (error) {
+    console.error("Error fetching work details:", error);
+    response.status(500).json({ error: "Internal server error" });
+  }
 });
 
 module.exports = app;
